@@ -208,7 +208,7 @@ app.get("/categories", async (req, res) => {
 });
 
 // appointments
-
+// customer part
 app.post("/appointments", verifyToken, verifyCustomer, async (req, res) => {
   const service = req.body;
   const result = await appointmentCollection.insertOne(service);
@@ -249,6 +249,34 @@ app.get("/my-appointments/:customerEmail", async (req, res) => {
   res.send(result);
 });
 
+// update appointment
+app.patch("/my-appointments/:id", async (req, res) => {
+  const id = req.params.id;
+  const { email } = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: "Invalid ID" });
+  }
+
+  const query = {
+    _id: new ObjectId(id),
+    customerEmail: email,
+    appointmentStatus: "Pending",
+  };
+
+  const updatedDoc = {
+    $set: {
+      appointmentStatus: "Cancelled",
+      updatedAt: new Date(),
+    },
+  };
+
+  const result = await appointmentCollection.updateOne(query, updatedDoc);
+
+  res.send(result);
+});
+
+// admin part
 app.get("/appointments", async (req, res) => {
   const result = await appointmentCollection
     .aggregate([
@@ -287,6 +315,37 @@ app.get("/appointments", async (req, res) => {
       },
     ])
     .toArray();
+
+  res.send(result);
+});
+
+// update appointment
+app.patch("/appointments/:id", async (req, res) => {
+  const id = req.params.id;
+  const { status } = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: "Invalid ID" });
+  }
+
+  if (!["Confirmed", "Cancelled"].includes(status)) {
+    return res.status(400).send({ message: "Invalid status" });
+  }
+
+  const query = {
+    _id: new ObjectId(id),
+    appointmentStatus:
+      status === "Confirmed" ? "Pending" : { $in: ["Pending", "Confirmed"] },
+  };
+
+  const updatedDoc = {
+    $set: {
+      appointmentStatus: status,
+      updatedAt: new Date(),
+    },
+  };
+
+  const result = await appointmentCollection.updateOne(query, updatedDoc);
 
   res.send(result);
 });
