@@ -215,14 +215,13 @@ app.post("/appointments", verifyToken, verifyCustomer, async (req, res) => {
   res.send(result);
 });
 
-app.get("/my-appointments/:customerEmail", async (req, res) => {
-  const email = req.params.customerEmail;
-  console.log(email);
+app.get("/my-appointments/:customerId", async (req, res) => {
+  const customerId = req.params.customerId;
 
   const result = await appointmentCollection
     .aggregate([
       {
-        $match: { customerEmail: email },
+        $match: { customerId },
       },
       {
         $addFields: {
@@ -250,9 +249,11 @@ app.get("/my-appointments/:customerEmail", async (req, res) => {
 });
 
 // update appointment
-app.patch("/my-appointments/:id", async (req, res) => {
-  const id = req.params.id;
-  const { email } = req.body;
+app.patch("/my-appointments/:appointmentId", async (req, res) => {
+  const id = req.params.appointmentId;
+  const { customerId } = req.body;
+
+  console.log(id);
 
   if (!ObjectId.isValid(id)) {
     return res.status(400).send({ message: "Invalid ID" });
@@ -260,18 +261,24 @@ app.patch("/my-appointments/:id", async (req, res) => {
 
   const query = {
     _id: new ObjectId(id),
-    customerEmail: email,
-    appointmentStatus: "Pending",
+    customerId,
+    status: "Pending",
   };
 
   const updatedDoc = {
     $set: {
-      appointmentStatus: "Cancelled",
+      status: "Cancelled",
       updatedAt: new Date(),
     },
   };
 
   const result = await appointmentCollection.updateOne(query, updatedDoc);
+
+  if (result.matchedCount === 0) {
+    return res.status(404).send({
+      message: "Appointment not found or cannot be cancelled",
+    });
+  }
 
   res.send(result);
 });
@@ -283,6 +290,7 @@ app.get("/appointments", async (req, res) => {
       {
         $addFields: {
           serviceObjectId: { $toObjectId: "$serviceId" },
+          customerObjectId: { $toObjectId: "$customerId" },
         },
       },
       {
@@ -299,8 +307,8 @@ app.get("/appointments", async (req, res) => {
       {
         $lookup: {
           from: "user",
-          localField: "customerEmail",
-          foreignField: "email",
+          localField: "customerObjectId",
+          foreignField: "_id",
           as: "customer",
         },
       },
@@ -349,6 +357,12 @@ app.patch("/appointments/:id", async (req, res) => {
 
   res.send(result);
 });
+
+
+
+// Users
+// customer part
+
 
 app.listen(port, () => {
   console.log(`Saloon Book is running on port ${port}`);
