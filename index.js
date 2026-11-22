@@ -6,6 +6,10 @@ import "dotenv/config";
 const app = express();
 const port = process.env.PORT || 8000;
 
+// middleware
+app.use(express.json());
+app.use(cors());
+
 const client = new MongoClient(process.env.MONGODB_URI);
 
 export async function connectToMongoDB() {
@@ -24,13 +28,14 @@ const users = database.collection("user");
 const serviceCollection = database.collection("services");
 const categoryCollection = database.collection("categories");
 
-app.use(cors());
 
 const verifyToken = async (req, res, next) => {
+    console.log("token", req.body);
   next();
 };
 
 const verifyAdmin = async (req, res, next) => {
+    console.log("admin", req.body);
   //   if (req.user.role !== "admin") {
   //     res.status(403).send({ message: "Forbidden" });
   //     return;
@@ -137,6 +142,13 @@ app.get("/services/:id", verifyToken, async (req, res) => {
   const query = { _id: new ObjectId(id) };
   query.status = "active";
   const result = await serviceCollection.findOne(query);
+  res.send(result);
+});
+
+app.post("/services", verifyToken, verifyAdmin, async (req, res) => {
+    console.log("service: ", req.body);
+  const service = req.body;
+  const result = await serviceCollection.insertOne(service);
   res.send(result);
 });
 
