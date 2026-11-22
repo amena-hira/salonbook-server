@@ -27,6 +27,7 @@ const database = mongoClient.db("salonbook");
 const users = database.collection("user");
 const serviceCollection = database.collection("services");
 const categoryCollection = database.collection("categories");
+const appointmentCollection = database.collection("appointments");
 
 const verifyToken = async (req, res, next) => {
   console.log("token", req.body);
@@ -205,9 +206,88 @@ app.get("/categories", async (req, res) => {
   const result = await categoryCollection.find().toArray();
   res.send(result);
 });
+
 // appointments
-app.get("/appointments", verifyToken, async (req, res) => {
-  const result = await categoryCollection.find().toArray();
+
+app.post("/appointments", verifyToken, verifyCustomer, async (req, res) => {
+  const service = req.body;
+  const result = await appointmentCollection.insertOne(service);
+  res.send(result);
+});
+
+app.get("/my-appointments/:customerEmail", async (req, res) => {
+  const email = req.params.customerEmail;
+  console.log(email);
+
+  const result = await appointmentCollection
+    .aggregate([
+      {
+        $match: { customerEmail: email },
+      },
+      {
+        $addFields: {
+          serviceObjectId: { $toObjectId: "$serviceId" },
+        },
+      },
+      {
+        $lookup: {
+          from: "services",
+          localField: "serviceObjectId",
+          foreignField: "_id",
+          as: "service",
+        },
+      },
+      {
+        $unwind: "$service",
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+    ])
+    .toArray();
+
+  res.send(result);
+});
+
+app.get("/appointments", async (req, res) => {
+  const result = await appointmentCollection
+    .aggregate([
+      {
+        $addFields: {
+          serviceObjectId: { $toObjectId: "$serviceId" },
+        },
+      },
+      {
+        $lookup: {
+          from: "services",
+          localField: "serviceObjectId",
+          foreignField: "_id",
+          as: "service",
+        },
+      },
+      {
+        $unwind: "$service",
+      },
+      {
+        $lookup: {
+          from: "user",
+          localField: "customerEmail",
+          foreignField: "email",
+          as: "customer",
+        },
+      },
+      {
+        $unwind: {
+          path: "$customer",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+    ])
+    .toArray();
+
   res.send(result);
 });
 
