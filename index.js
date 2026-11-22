@@ -28,14 +28,13 @@ const users = database.collection("user");
 const serviceCollection = database.collection("services");
 const categoryCollection = database.collection("categories");
 
-
 const verifyToken = async (req, res, next) => {
-    console.log("token", req.body);
+  console.log("token", req.body);
   next();
 };
 
 const verifyAdmin = async (req, res, next) => {
-    console.log("admin", req.body);
+  console.log("admin", req.body);
   //   if (req.user.role !== "admin") {
   //     res.status(403).send({ message: "Forbidden" });
   //     return;
@@ -59,7 +58,7 @@ app.get("/services", async (req, res) => {
   const query = {};
   if (req.query) {
     // Status filter
-    if (req.query.status === "active") {
+    if (req.query.status) {
       query.status = req.query.status;
     }
     // Category filter
@@ -145,11 +144,52 @@ app.get("/services/:id", verifyToken, async (req, res) => {
   res.send(result);
 });
 
+app.get("/admin/services", verifyToken, verifyAdmin, async (req, res) => {
+  const result = await serviceCollection.find().sort({ _id: -1 }).toArray();
+  res.send(result);
+});
+
+app.get("/admin/service/:id", verifyToken, async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: new ObjectId(id) };
+  const result = await serviceCollection.findOne(query);
+  res.send(result);
+});
+
 app.post("/services", verifyToken, verifyAdmin, async (req, res) => {
-    console.log("service: ", req.body);
   const service = req.body;
   const result = await serviceCollection.insertOne(service);
   res.send(result);
+});
+
+app.patch("/services/:id", verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid service id" });
+    }
+
+    if (!data || Object.keys(data).length === 0) {
+      return res.status(400).send({ message: "Request body cannot be empty" });
+    }
+
+    const filter = { _id: new ObjectId(id) };
+
+    const result = await serviceCollection.updateOne(filter, { $set: data });
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ message: "Service not found" });
+    }
+    res.send(result);
+  } catch (error) {
+    console.error("Error updating service:", error);
+    res.status(500).send({
+      message: "Failed to update service",
+      error: error.message,
+    });
+  }
 });
 
 // categories
