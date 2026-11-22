@@ -24,7 +24,7 @@ export async function connectToMongoDB() {
 
 const mongoClient = await connectToMongoDB();
 const database = mongoClient.db("salonbook");
-const users = database.collection("user");
+const userCollection = database.collection("user");
 const serviceCollection = database.collection("services");
 const categoryCollection = database.collection("categories");
 const appointmentCollection = database.collection("appointments");
@@ -209,9 +209,25 @@ app.get("/categories", async (req, res) => {
 
 // appointments
 // customer part
-app.post("/appointments", verifyToken, verifyCustomer, async (req, res) => {
-  const service = req.body;
-  const result = await appointmentCollection.insertOne(service);
+app.post("/appointments", async (req, res) => {
+  const appointment = req.body;
+
+  const { serviceId, appointmentDate, timeSlot } = appointment;
+
+  const existingAppointment = await appointmentCollection.findOne({
+    serviceId,
+    appointmentDate,
+    timeSlot,
+    status: { $in: ["Pending", "Confirmed"] },
+  });
+
+  if (existingAppointment) {
+    return res.status(409).send({
+      message: "This time slot is already booked",
+    });
+  }
+
+  const result = await appointmentCollection.insertOne(appointment);
   res.send(result);
 });
 
@@ -358,11 +374,32 @@ app.patch("/appointments/:id", async (req, res) => {
   res.send(result);
 });
 
-
-
 // Users
-// customer part
+// update user profile
+app.patch("/update-profile", async (req, res) => {
+  const email = req.query.email;
+  const { name, image, phone } = req.body;
 
+  if (!email) {
+    return res.status(400).send({
+      message: "Email is required",
+    });
+  }
+
+  const query = { email };
+
+  const updatedDoc = {
+    $set: {
+      name,
+      image,
+      phone,
+    },
+  };
+
+  const result = await userCollection.updateOne(query, updatedDoc);
+
+  res.send(result);
+});
 
 app.listen(port, () => {
   console.log(`Saloon Book is running on port ${port}`);
