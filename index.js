@@ -26,6 +26,26 @@ const categoryCollection = database.collection("categories");
 
 app.use(cors());
 
+const verifyToken = async (req, res, next) => {
+  next();
+};
+
+const verifyAdmin = async (req, res, next) => {
+  //   if (req.user.role !== "admin") {
+  //     res.status(403).send({ message: "Forbidden" });
+  //     return;
+  //   }
+  next();
+};
+
+const verifyCustomer = async (req, res, next) => {
+  //   if (req.user.role !== "customer") {
+  //     res.status(403).send({ message: "Forbidden" });
+  //     return;
+  //   }
+  next();
+};
+
 app.get("/", (req, res) => {
   res.send("Saloon Book server is running!");
 });
@@ -112,7 +132,7 @@ app.get("/services", async (req, res) => {
   res.send(result);
 });
 
-app.get("/services/:id", async (req, res) => {
+app.get("/services/:id", verifyToken, async (req, res) => {
   const id = req.params.id;
   const query = { _id: new ObjectId(id) };
   query.status = "active";
@@ -120,12 +140,14 @@ app.get("/services/:id", async (req, res) => {
   res.send(result);
 });
 
+// categories
+
 app.get("/categories", async (req, res) => {
   const result = await categoryCollection.find().toArray();
   res.send(result);
 });
 // appointments
-app.get("/appointments", async (req, res) => {
+app.get("/appointments", verifyToken, async (req, res) => {
   const result = await categoryCollection.find().toArray();
   res.send(result);
 });
