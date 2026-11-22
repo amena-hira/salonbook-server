@@ -401,6 +401,30 @@ app.patch("/update-profile", async (req, res) => {
   res.send(result);
 });
 
+// admin part
+app.get("/users", async (req, res) => {
+  const result = await userCollection.find().toArray();
+  res.send(result);
+});
+
+app.patch("/users/:id/block", async (req, res) => {
+  const { id } = req.params;
+  const { isBlocked } = req.body;
+
+  if (typeof isBlocked !== "boolean") {
+    return res.status(400).send({
+      message: "isBlocked must be true or false",
+    });
+  }
+
+  const result = await userCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { isBlocked } },
+  );
+
+  res.send(result);
+});
+
 app.listen(port, () => {
   console.log(`Saloon Book is running on port ${port}`);
 });
