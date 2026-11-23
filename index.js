@@ -692,6 +692,46 @@ app.get("/transactions", async (req, res) => {
   }
 });
 
+// Dashboard KPI for admin
+app.get("/admin/dashboard-stats", async (req, res) => {
+  try {
+    const totalCustomers = await userCollection.countDocuments({
+      role: "customer",
+    });
+
+    const totalActiveServices = await serviceCollection.countDocuments({
+      status: "active",
+    });
+
+    const totalAppointments = await appointmentCollection.countDocuments();
+
+    const pendingAppointments = await appointmentCollection.countDocuments({
+      status: "Pending",
+    });
+
+    const confirmedAppointments = await appointmentCollection.countDocuments({
+      status: "Confirmed",
+    });
+
+    const successfulPayments = await transactionCollection.countDocuments({
+      status: "Paid",
+    });
+
+    res.send({
+      totalCustomers,
+      totalActiveServices,
+      totalAppointments,
+      pendingAppointments,
+      confirmedAppointments,
+      successfulPayments,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+    });
+  }
+});
+
 // Users
 // update user profile
 app.patch("/update-profile", async (req, res) => {
