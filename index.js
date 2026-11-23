@@ -30,9 +30,37 @@ const serviceCollection = database.collection("services");
 const categoryCollection = database.collection("categories");
 const appointmentCollection = database.collection("appointments");
 const transactionCollection = database.collection("transactions");
+const sessions = database.collection("session");
 
 const verifyToken = async (req, res, next) => {
-  console.log("token", req.body);
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    res.status(401).send({ message: "Unauthorized" });
+    return;
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    res.status(401).send({ message: "Unauthorized" });
+    return;
+  }
+
+  const query = { token };
+  const session = await sessions.findOne(query);
+  if (!session) {
+    res.status(401).send({ message: "Unauthorized" });
+    return;
+  }
+
+  const userId = session.userId;
+
+  const userQuery = { _id: new ObjectId(userId) };
+  const user = await userCollection.findOne(userQuery);
+  if (!user) {
+    res.status(401).send({ message: "Unauthorized" });
+    return;
+  }
+
+  req.user = user;
   next();
 };
 
@@ -507,8 +535,14 @@ app.post("/payments/checkout-verify", async (req, res) => {
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    const { status, payment_status, metadata, amount_total, currency } =
-      session;
+    const {
+      status,
+      payment_status,
+      metadata,
+      amount_total,
+      currency,
+      payment_intent,
+    } = session;
 
     // Check duplicate transaction
     const existingTransaction = await transactionCollection.findOne({
@@ -554,6 +588,7 @@ app.post("/payments/checkout-verify", async (req, res) => {
         amount: amount_total / 100,
         currency,
         stripeSessionId: sessionId,
+        transactionId: payment_intent,
         status: "Paid",
         createdAt: new Date(),
       };
