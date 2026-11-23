@@ -347,6 +347,7 @@ app.get("/appointments", async (req, res) => {
 app.patch("/appointments/:id", async (req, res) => {
   const id = req.params.id;
   const { status } = req.body;
+  console.log(status, id);
 
   if (!ObjectId.isValid(id)) {
     return res.status(400).send({ message: "Invalid ID" });
@@ -358,13 +359,13 @@ app.patch("/appointments/:id", async (req, res) => {
 
   const query = {
     _id: new ObjectId(id),
-    appointmentStatus:
+    status:
       status === "Confirmed" ? "Pending" : { $in: ["Pending", "Confirmed"] },
   };
 
   const updatedDoc = {
     $set: {
-      appointmentStatus: status,
+      status: status,
       updatedAt: new Date(),
     },
   };
