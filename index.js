@@ -7,7 +7,14 @@ import Stripe from "stripe";
 const app = express();
 const port = process.env.PORT || 8000;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const client = new MongoClient(process.env.MONGODB_URI);
+
+const DB_USER = encodeURIComponent(process.env.DB_USER || "");
+const DB_PASSWORD = encodeURIComponent(process.env.DB_PASSWORD || "");
+const BASE_URL = process.env.BASE_URL;
+
+const client = new MongoClient(
+  `mongodb+srv://${DB_USER}:${DB_PASSWORD}@cluster0.nvjlqis.mongodb.net/`,
+);
 
 // middleware
 app.use(express.json());
