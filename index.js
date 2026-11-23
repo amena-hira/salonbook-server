@@ -590,6 +590,108 @@ app.post("/payments/checkout-verify", async (req, res) => {
   }
 });
 
+// admin part - transactions
+app.get("/transactions", async (req, res) => {
+  try {
+    const transactions = await transactionCollection
+      .aggregate([
+        {
+          $addFields: {
+            customerObjectId: {
+              $toObjectId: "$customerId",
+            },
+            appointmentObjectId: {
+              $toObjectId: "$appointmentId",
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "user",
+            localField: "customerObjectId",
+            foreignField: "_id",
+            as: "customer",
+          },
+        },
+        {
+          $unwind: {
+            path: "$customer",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "appointments",
+            localField: "appointmentObjectId",
+            foreignField: "_id",
+            as: "appointment",
+          },
+        },
+        {
+          $unwind: {
+            path: "$appointment",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $addFields: {
+            serviceObjectId: {
+              $convert: {
+                input: "$appointment.serviceId",
+                to: "objectId",
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "services",
+            localField: "serviceObjectId",
+            foreignField: "_id",
+            as: "service",
+          },
+        },
+        {
+          $unwind: {
+            path: "$service",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $set: {
+            customer: {
+              name: "$customer.name",
+              email: "$customer.email",
+              image: "$customer.image",
+              phone: "$customer.phone",
+            },
+          },
+        },
+        {
+          $project: {
+            customerObjectId: 0,
+            appointmentObjectId: 0,
+            serviceObjectId: 0,
+          },
+        },
+        {
+          $sort: {
+            createdAt: -1,
+          },
+        },
+      ])
+      .toArray();
+
+    res.send(transactions);
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+    });
+  }
+});
+
 // Users
 // update user profile
 app.patch("/update-profile", async (req, res) => {
