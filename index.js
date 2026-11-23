@@ -864,3 +864,5 @@ app.patch("/users/:id/block",verifyToken,verifyAdmin, async (req, res) => {
 app.listen(port, () => {
   console.log(`Saloon Book is running on port ${port}`);
 });
+
+export default app;
