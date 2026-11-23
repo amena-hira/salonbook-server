@@ -2,15 +2,17 @@ import express from "express";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
+import Stripe from "stripe";
 
 const app = express();
 const port = process.env.PORT || 8000;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const client = new MongoClient(process.env.MONGODB_URI);
 
 // middleware
 app.use(express.json());
 app.use(cors());
 
-const client = new MongoClient(process.env.MONGODB_URI);
 
 export async function connectToMongoDB() {
   try {
@@ -28,6 +30,7 @@ const userCollection = database.collection("user");
 const serviceCollection = database.collection("services");
 const categoryCollection = database.collection("categories");
 const appointmentCollection = database.collection("appointments");
+const transactionCollection = database.collection("transactions");
 
 const verifyToken = async (req, res, next) => {
   console.log("token", req.body);
@@ -373,6 +376,105 @@ app.patch("/appointments/:id", async (req, res) => {
   const result = await appointmentCollection.updateOne(query, updatedDoc);
 
   res.send(result);
+});
+
+// transactions
+
+app.post("/payments/checkout-verify", async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    console.log(sessionId);
+
+    if (!sessionId) {
+      return res.status(400).send({
+        success: false,
+        message: "Session ID is required",
+      });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    const { status, payment_status, metadata, amount_total, currency } =
+      session;
+
+    // Check duplicate transaction
+    const existingTransaction = await transactionCollection.findOne({
+      stripeSessionId: sessionId,
+    });
+
+    if (existingTransaction) {
+      return res.send({
+        success: false,
+        message: "Payment already verified",
+      });
+    }
+
+    if (status === "complete" && payment_status === "paid") {
+      const { appointmentId, customerId } = metadata;
+
+      if (!ObjectId.isValid(appointmentId)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid appointment ID",
+        });
+      }
+
+      // Check appointment
+      const appointment = await appointmentCollection.findOne({
+        _id: new ObjectId(appointmentId),
+        customerId,
+        status: "Confirmed",
+        paymentStatus: "Unpaid",
+      });
+
+      if (!appointment) {
+        return res.status(400).send({
+          success: false,
+          message: "Appointment not found or already paid",
+        });
+      }
+
+      // Create transaction
+      const transaction = {
+        appointmentId,
+        customerId,
+        amount: amount_total / 100,
+        currency,
+        stripeSessionId: sessionId,
+        status: "Paid",
+        createdAt: new Date(),
+      };
+
+      const result = await transactionCollection.insertOne(transaction);
+
+      // Update appointment payment status
+      const updateResult = await appointmentCollection.updateOne(
+        { _id: new ObjectId(appointmentId) },
+        {
+          $set: {
+            paymentStatus: "Paid",
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      return res.send({
+        success: true,
+        result,
+        updateResult,
+      });
+    }
+
+    res.send({
+      success: false,
+      message: "Payment verification failed",
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: error.message,
+    });
+  }
 });
 
 // Users
