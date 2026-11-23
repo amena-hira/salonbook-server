@@ -13,7 +13,6 @@ const client = new MongoClient(process.env.MONGODB_URI);
 app.use(express.json());
 app.use(cors());
 
-
 export async function connectToMongoDB() {
   try {
     await client.connect();
@@ -376,6 +375,120 @@ app.patch("/appointments/:id", async (req, res) => {
   const result = await appointmentCollection.updateOne(query, updatedDoc);
 
   res.send(result);
+});
+
+// appointment & service & transaction & user
+app.get("/appointments/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid appointment ID",
+      });
+    }
+
+    const result = await appointmentCollection
+      .aggregate([
+        {
+          $match: {
+            _id: new ObjectId(id),
+          },
+        },
+        {
+          $addFields: {
+            serviceObjectId: {
+              $toObjectId: "$serviceId",
+            },
+            customerObjectId: {
+              $toObjectId: "$customerId",
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "services",
+            localField: "serviceObjectId",
+            foreignField: "_id",
+            as: "service",
+          },
+        },
+        {
+          $unwind: {
+            path: "$service",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "user",
+            localField: "customerObjectId",
+            foreignField: "_id",
+            as: "customer",
+          },
+        },
+        {
+          $unwind: {
+            path: "$customer",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "transactions",
+            let: {
+              appointmentId: {
+                $toString: "$_id",
+              },
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: ["$appointmentId", "$$appointmentId"],
+                  },
+                },
+              },
+              {
+                $sort: {
+                  createdAt: -1,
+                },
+              },
+              {
+                $limit: 1,
+              },
+            ],
+            as: "transaction",
+          },
+        },
+        {
+          $unwind: {
+            path: "$transaction",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            serviceObjectId: 0,
+            customerObjectId: 0,
+            "customer.password": 0,
+          },
+        },
+      ])
+      .toArray();
+
+    if (!result.length) {
+      return res.status(404).send({
+        message: "Appointment not found",
+      });
+    }
+
+    res.send(result[0]);
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+    });
+  }
 });
 
 // transactions
