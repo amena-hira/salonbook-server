@@ -174,12 +174,13 @@ app.get("/services/:id", verifyToken, async (req, res) => {
   res.send(result);
 });
 
+// admin part
 app.get("/admin/services", verifyToken, verifyAdmin, async (req, res) => {
   const result = await serviceCollection.find().sort({ _id: -1 }).toArray();
   res.send(result);
 });
 
-app.get("/admin/service/:id", verifyToken, async (req, res) => {
+app.get("/admin/service/:id", verifyToken, verifyAdmin, async (req, res) => {
   const id = req.params.id;
   const query = { _id: new ObjectId(id) };
   const result = await serviceCollection.findOne(query);
@@ -222,7 +223,7 @@ app.patch("/services/:id", verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-app.delete("/services/:id", async (req, res) => {
+app.delete("/services/:id", verifyToken, verifyAdmin, async (req, res) => {
   const id = req.params.id;
   const query = { _id: new ObjectId(id) };
   const result = await serviceCollection.deleteOne(query);
@@ -238,7 +239,44 @@ app.get("/categories", async (req, res) => {
 
 // appointments
 // customer part
-app.post("/appointments", async (req, res) => {
+app.get("/appointments/availability",verifyToken,verifyCustomer, async (req, res) => {
+  try {
+    const { serviceId, appointmentDate } = req.query;
+
+    if (!serviceId || !appointmentDate) {
+      return res.status(400).send({
+        message: "serviceId and appointmentDate are required",
+      });
+    }
+
+    const appointments = await appointmentCollection
+      .find(
+        {
+          serviceId,
+          appointmentDate,
+          status: { $in: ["Pending", "Confirmed"] },
+        },
+        {
+          projection: {
+            _id: 0,
+            timeSlot: 1,
+          },
+        },
+      )
+      .toArray();
+
+    const bookedSlots = appointments.map((appointment) => appointment.timeSlot);
+
+    res.send({ bookedSlots });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+    });
+  }
+});
+
+// create appointment by customer
+app.post("/appointments", verifyToken, verifyCustomer, async (req, res) => {
   const appointment = req.body;
 
   const { serviceId, appointmentDate, timeSlot } = appointment;
@@ -260,7 +298,7 @@ app.post("/appointments", async (req, res) => {
   res.send(result);
 });
 
-app.get("/my-appointments/:customerId", async (req, res) => {
+app.get("/my-appointments/:customerId",verifyToken,verifyCustomer, async (req, res) => {
   const customerId = req.params.customerId;
 
   const result = await appointmentCollection
@@ -293,8 +331,8 @@ app.get("/my-appointments/:customerId", async (req, res) => {
   res.send(result);
 });
 
-// update appointment
-app.patch("/my-appointments/:appointmentId", async (req, res) => {
+// update appointment from customer
+app.patch("/my-appointments/:appointmentId",verifyToken,verifyCustomer, async (req, res) => {
   const id = req.params.appointmentId;
   const { customerId } = req.body;
 
@@ -329,7 +367,7 @@ app.patch("/my-appointments/:appointmentId", async (req, res) => {
 });
 
 // admin part
-app.get("/appointments", async (req, res) => {
+app.get("/appointments", verifyToken,verifyAdmin, async (req, res) => {
   const result = await appointmentCollection
     .aggregate([
       {
@@ -373,7 +411,7 @@ app.get("/appointments", async (req, res) => {
 });
 
 // update appointment
-app.patch("/appointments/:id", async (req, res) => {
+app.patch("/appointments/:id", verifyToken,verifyAdmin, async (req, res) => {
   const id = req.params.id;
   const { status } = req.body;
   console.log(status, id);
@@ -405,7 +443,7 @@ app.patch("/appointments/:id", async (req, res) => {
 });
 
 // appointment & service & transaction & user
-app.get("/appointments/:id", async (req, res) => {
+app.get("/appointments/:id",verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
 
@@ -520,7 +558,7 @@ app.get("/appointments/:id", async (req, res) => {
 
 // transactions
 
-app.post("/payments/checkout-verify", async (req, res) => {
+app.post("/payments/checkout-verify",verifyToken,verifyCustomer, async (req, res) => {
   try {
     const { sessionId } = req.body;
     console.log(sessionId);
@@ -625,7 +663,7 @@ app.post("/payments/checkout-verify", async (req, res) => {
 });
 
 // admin part - transactions
-app.get("/transactions", async (req, res) => {
+app.get("/transactions",verifyToken,verifyAdmin, async (req, res) => {
   try {
     const transactions = await transactionCollection
       .aggregate([
@@ -727,7 +765,7 @@ app.get("/transactions", async (req, res) => {
 });
 
 // Dashboard KPI for admin
-app.get("/admin/dashboard-stats", async (req, res) => {
+app.get("/admin/dashboard-stats",verifyToken,verifyAdmin, async (req, res) => {
   try {
     const totalCustomers = await userCollection.countDocuments({
       role: "customer",
@@ -768,7 +806,7 @@ app.get("/admin/dashboard-stats", async (req, res) => {
 
 // Users
 // update user profile
-app.patch("/update-profile", async (req, res) => {
+app.patch("/update-profile",verifyToken, async (req, res) => {
   const email = req.query.email;
   const { name, image, phone } = req.body;
 
@@ -794,12 +832,12 @@ app.patch("/update-profile", async (req, res) => {
 });
 
 // admin part
-app.get("/users", async (req, res) => {
+app.get("/users",verifyToken,verifyAdmin, async (req, res) => {
   const result = await userCollection.find().toArray();
   res.send(result);
 });
 
-app.patch("/users/:id/block", async (req, res) => {
+app.patch("/users/:id/block",verifyToken,verifyAdmin, async (req, res) => {
   const { id } = req.params;
   const { isBlocked } = req.body;
 
